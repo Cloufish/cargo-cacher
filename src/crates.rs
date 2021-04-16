@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use std::thread;
 
+use log::{debug, error, trace, warn};
+use serde::Deserialize;
+
 use cargo_lock::Lockfile;
 use scoped_threadpool::Pool;
 use serde_json;

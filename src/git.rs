@@ -1,19 +1,21 @@
 // use std::ascii::AsciiExt;
 use std::collections::HashMap;
-use std::io::prelude::*;
 use std::io;
+use std::io::prelude::*;
 use std::process::{Command, Stdio};
+
+use log::debug;
 
 use iron::headers::ContentType;
 
 // Iron Stuff
-use iron::status::{self, Status};
 use iron::prelude::*;
 use iron::response::BodyReader;
+use iron::status::{self, Status};
 
-use iron::mime::{Mime, TopLevel, SubLevel};
+use iron::mime::{Mime, SubLevel, TopLevel};
 
-use Config;
+use crate::Config;
 
 pub fn git(req: &mut Request, config: &Config) -> IronResult<Response> {
     debug!("Raw GIT request: {:?}", req);
@@ -57,7 +59,12 @@ pub fn git(req: &mut Request, config: &Config) -> IronResult<Response> {
         .stdin(Stdio::piped());
     let mut p = match cmd.spawn() {
         Ok(s) => s,
-        Err(_) => return Ok(Response::with((status::InternalServerError, "Failed to run git"))),
+        Err(_) => {
+            return Ok(Response::with((
+                status::InternalServerError,
+                "Failed to run git",
+            )))
+        }
     };
     let _ = io::copy(&mut req.body, &mut p.stdin.take().unwrap());
     // Parse the headers coming out, and the pass through the rest of the
@@ -68,7 +75,12 @@ pub fn git(req: &mut Request, config: &Config) -> IronResult<Response> {
 
     let out = match p.wait_with_output() {
         Ok(s) => s,
-        _ => return Ok(Response::with((status::InternalServerError, "Failed to run git"))),
+        _ => {
+            return Ok(Response::with((
+                status::InternalServerError,
+                "Failed to run git",
+            )))
+        }
     };
     // debug!("Out: {}", String::from_utf8_lossy(out));
     let mut rdr = io::BufReader::new(io::Cursor::new(out.stdout));
@@ -87,16 +99,17 @@ pub fn git(req: &mut Request, config: &Config) -> IronResult<Response> {
         let key = parts.next().unwrap();
         let value = parts.next().unwrap();
         let value = &value[1..];
-        headers.entry(key.to_string())
+        headers
+            .entry(key.to_string())
             .or_insert(Vec::new())
             .push(value.to_string());
     }
 
-
     // let mut buf = Vec::new();
     // let _ = rdr.read_to_end(&mut buf);
 
-    let content_type = headers.get("Content-Type")
+    let content_type = headers
+        .get("Content-Type")
         .unwrap_or(&vec![])
         .first()
         .unwrap_or(&"".to_string())
@@ -105,7 +118,9 @@ pub fn git(req: &mut Request, config: &Config) -> IronResult<Response> {
         .last()
         .unwrap_or("")
         .into();
-    Ok(Response::with((Status::Ok,
-                       BodyReader(rdr),
-                       Mime(TopLevel::Application, SubLevel::Ext(content_type), vec![]))))
+    Ok(Response::with((
+        Status::Ok,
+        BodyReader(rdr),
+        Mime(TopLevel::Application, SubLevel::Ext(content_type), vec![]),
+    )))
 }

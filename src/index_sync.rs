@@ -4,8 +4,10 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::thread::{self, sleep};
 
+use log::{debug, trace, warn};
+
+use super::crates::fetch_all;
 use super::Config;
-use crates::fetch_all;
 
 pub fn init_sync(git_path: PathBuf, config: &Config) {
     let config = config.clone();

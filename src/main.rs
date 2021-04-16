@@ -1,22 +1,7 @@
-extern crate cargo_lock;
-#[macro_use]
-extern crate clap;
-extern crate iron;
-#[macro_use]
-extern crate log;
-extern crate logger;
-#[macro_use]
-extern crate router;
-extern crate rusqlite;
-extern crate scoped_threadpool;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate serde_json;
-extern crate simple_logger;
-extern crate walkdir;
-extern crate humantime;
+mod crates;
+mod git;
+mod index_sync;
+mod stats;
 
 use std::env;
 use std::path::PathBuf;
@@ -26,21 +11,19 @@ use std::sync::mpsc::SyncSender;
 use std::sync::Mutex;
 use std::time::Duration;
 
-mod crates;
-mod git;
-mod index_sync;
-mod stats;
+use log::{debug, error, info, trace};
+use router::router;
 
-use clap::{App, Arg};
+use clap::{crate_version, App, Arg};
 
 // Iron Stuff
-use iron::prelude::*;
-use iron::status;
-use iron::AfterMiddleware;
+use iron::{
+    mime::{Mime, SubLevel, TopLevel},
+    prelude::*,
+    status, AfterMiddleware,
+};
 use logger::Logger;
 use router::Router;
-
-use iron::mime::{Mime, SubLevel, TopLevel};
 
 use crates::{fetch, pre_fetch, size};
 use stats::Database;
@@ -58,7 +41,7 @@ pub struct Config {
     port: u16,
     refresh_interval: Duration,
     threads: u32,
-    log_level: log::Level,
+    log_level_filter: log::LevelFilter,
 }
 
 impl Config {
@@ -126,7 +109,7 @@ impl Config {
                     .short("e")
                     .required(false)
                     .takes_value(true)
-                    .help("Externally reachable URL (Default: http://localhost:8080)")
+                    .help("Externally reachable URL (Default: http://localhost:8080)"),
             )
             .arg(
                 Arg::with_name("refresh")
@@ -156,11 +139,11 @@ impl Config {
             )
             .get_matches();
 
-        let log_level = match matches.occurrences_of("debug") {
-            0 => log::Level::Warn,
-            1 => log::Level::Info,
-            2 => log::Level::Debug,
-            3 | _ => log::Level::Trace,
+        let log_level_filter = match matches.occurrences_of("debug") {
+            0 => log::LevelFilter::Warn,
+            1 => log::LevelFilter::Info,
+            2 => log::LevelFilter::Debug,
+            3 | _ => log::LevelFilter::Trace,
         };
         let default_crate_path = format!("{}/.crates", dirs::home_dir().unwrap().to_str().unwrap());
         let index_path: String = matches
@@ -172,10 +155,9 @@ impl Config {
         crate_path.push_str("/crates");
         let mut git_index: String = index_path.clone();
         git_index.push_str("/index");
-        let port = u16::from_str(matches.value_of("port")
-                    .unwrap_or("8080"))
-                .unwrap_or(8080);
-        let refresh_interval_human = matches.value_of("refresh")
+        let port = u16::from_str(matches.value_of("port").unwrap_or("8080")).unwrap_or(8080);
+        let refresh_interval_human = matches
+            .value_of("refresh")
             .unwrap_or("10 minutes")
             .parse::<humantime::Duration>();
         let refresh_interval_seconds = u64::from_str(matches.value_of("refresh").unwrap_or("600"));
@@ -191,8 +173,8 @@ impl Config {
         Config {
             all: matches.is_present("all"),
             prefetch_path: matches.value_of("prefetch").map(|r| r.to_string()),
-            index_path: index_path,
-            crate_path: crate_path,
+            index_path,
+            crate_path,
             git_index_path: git_index,
             upstream: matches
                 .value_of("upstream")
@@ -203,12 +185,13 @@ impl Config {
                 .unwrap_or("https://github.com/rust-lang/crates.io-index.git")
                 .into(),
             port: u16::from_str(matches.value_of("port").unwrap_or("8080")).unwrap_or(8080),
-            extern_url: matches.value_of("extern-url")
+            extern_url: matches
+                .value_of("extern-url")
                 .map(Into::into)
                 .unwrap_or(format!("http://localhost:{}", port)),
             refresh_interval: refresh_interval,
             threads: u32::from_str(matches.value_of("threads").unwrap_or("16")).unwrap_or(16),
-            log_level: log_level,
+            log_level_filter,
         }
     }
 }
@@ -228,7 +211,10 @@ pub struct CargoRequest {
 fn main() {
     let config = Config::init();
 
-    simple_logger::init_with_level(config.log_level).unwrap();
+    simple_logger::SimpleLogger::new()
+        .with_level(config.log_level_filter)
+        .init()
+        .unwrap();
     info!("Configuration: {:?}", config);
 
     setup_filesystem(&config);
@@ -318,13 +304,13 @@ fn fetch_download(
     stats: &Mutex<SyncSender<CargoRequest>>,
 ) -> IronResult<Response> {
     let stats = stats.lock().unwrap();
-    let ref crate_name = req
+    let crate_name = &req
         .extensions
         .get::<Router>()
         .unwrap()
         .find("crate_name")
         .unwrap();
-    let ref crate_version = req
+    let crate_version = &req
         .extensions
         .get::<Router>()
         .unwrap()
@@ -366,10 +352,10 @@ fn fetch_download(
             }
             Err(e) => {
                 error!("{:?}", e);
-                return Ok(Response::with((
+                Ok(Response::with((
                     status::ServiceUnavailable,
                     "Couldn't fetch from Crates.io",
-                )));
+                )))
             }
         }
     }
