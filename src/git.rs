@@ -35,8 +35,8 @@ pub fn git(req: &mut Request, config: &Config) -> IronResult<Response> {
         _ => "".into(),
     };
 
-    let path_info = if req.url.path().join("/").starts_with("/") {
-        req.url.path().join("/").to_string()
+    let path_info = if req.url.path().join("/").starts_with('/') {
+        req.url.path().join("/")
     } else {
         format!("/{}", req.url.path().join("/"))
     };
@@ -91,7 +91,7 @@ pub fn git(req: &mut Request, config: &Config) -> IronResult<Response> {
             Ok(s) => s,
             _ => break,
         };
-        if line == "" || line == "\r" {
+        if line.is_empty() || line == "\r" {
             break;
         }
 
@@ -101,7 +101,7 @@ pub fn git(req: &mut Request, config: &Config) -> IronResult<Response> {
         let value = &value[1..];
         headers
             .entry(key.to_string())
-            .or_insert(Vec::new())
+            .or_insert_with(Vec::new)
             .push(value.to_string());
     }
 
@@ -114,7 +114,7 @@ pub fn git(req: &mut Request, config: &Config) -> IronResult<Response> {
         .first()
         .unwrap_or(&"".to_string())
         .clone()
-        .split("/")
+        .split('/')
         .last()
         .unwrap_or("")
         .into();

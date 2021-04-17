@@ -12,7 +12,6 @@ use serde::Deserialize;
 
 use cargo_lock::Lockfile;
 use scoped_threadpool::Pool;
-use serde_json;
 use walkdir::WalkDir;
 
 use super::Config;
@@ -24,7 +23,7 @@ pub struct Package {
 }
 
 pub fn fetch(
-    path: &PathBuf,
+    path: &Path,
     upstream: &str,
     index_path: &str,
     crate_name: &str,
@@ -49,7 +48,7 @@ pub fn fetch(
         .status()
 }
 
-pub fn size(path: &PathBuf) -> u64 {
+pub fn size(path: &Path) -> u64 {
     match fs::metadata(path) {
         Ok(metadata) => metadata.len(),
         _ => 0,
@@ -80,7 +79,7 @@ fn try_fetch(config: &Config, crate_name: &str, crate_version: &str) {
 pub fn pre_fetch(config: &Config) {
     fetch_all(&config);
     let config = config.clone();
-    if let Some(_) = config.prefetch_path {
+    if config.prefetch_path.is_some() {
         let prefetch_path = config.prefetch_path.clone().unwrap();
         let prefetch_ext = Path::new(&prefetch_path).extension();
         if prefetch_ext == Some(OsStr::new("lock")) {
@@ -92,7 +91,7 @@ pub fn pre_fetch(config: &Config) {
             if let Ok(f) = File::open(prefetch_path) {
                 let reader = io::BufReader::new(f);
                 for line in reader.lines().filter(|l| l.is_ok()).map(|l| l.unwrap()) {
-                    let mut split = line.split("=");
+                    let mut split = line.split('=');
                     if let Some(crate_name) = split.next() {
                         if let Some(crate_version) = split.next() {
                             try_fetch(&config, crate_name, crate_version);

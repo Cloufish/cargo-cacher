@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread::{self, sleep};
 
@@ -21,14 +21,14 @@ pub fn init_sync(git_path: PathBuf, config: &Config) {
     });
 }
 
-pub fn git_sync(git_path: &PathBuf, index_path: &str, extern_url: &str) {
+fn git_sync(git_path: &Path, index_path: &str, extern_url: &str) {
     debug!(
         "Syncing git repo at {} with {}, setting API url to {}",
         git_path.to_str().unwrap(),
         index_path,
         extern_url
     );
-    let mut repo_path = git_path.clone();
+    let mut repo_path = git_path.to_path_buf();
     repo_path.push(".git");
     debug!("Repo path is {:?}", repo_path);
     let status = if repo_path.exists() {
@@ -89,7 +89,7 @@ pub fn git_sync(git_path: &PathBuf, index_path: &str, extern_url: &str) {
             Err(_) => return,
         }
     };
-    let mut config_path = git_path.clone();
+    let mut config_path = git_path.to_path_buf();
     config_path.push("config.json");
     if let Ok(mut f) = File::create(config_path) {
         let config = format!(
@@ -111,7 +111,7 @@ pub fn git_sync(git_path: &PathBuf, index_path: &str, extern_url: &str) {
             .current_dir(git_path)
             .status()
             .unwrap();
-        let mut export = git_path.clone();
+        let mut export = git_path.to_path_buf();
         export.push(".git");
         export.push("git-daemon-export-ok");
         let _ = File::create(export);

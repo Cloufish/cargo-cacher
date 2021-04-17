@@ -5,7 +5,6 @@ use std::thread;
 
 use super::CargoRequest;
 
-use rusqlite;
 use rusqlite::params;
 
 pub struct Database {
@@ -87,7 +86,7 @@ impl Database {
             params![],
         )
         .unwrap();
-        Database { conn: conn }
+        Database { conn }
     }
 
     pub fn stats(&self) -> Statistics {

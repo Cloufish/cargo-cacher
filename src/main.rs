@@ -143,7 +143,7 @@ impl Config {
             0 => log::LevelFilter::Warn,
             1 => log::LevelFilter::Info,
             2 => log::LevelFilter::Debug,
-            3 | _ => log::LevelFilter::Trace,
+            _ => log::LevelFilter::Trace,
         };
         let default_crate_path = format!("{}/.crates", dirs::home_dir().unwrap().to_str().unwrap());
         let index_path: String = matches
@@ -189,7 +189,7 @@ impl Config {
                 .value_of("extern-url")
                 .map(Into::into)
                 .unwrap_or(format!("http://localhost:{}", port)),
-            refresh_interval: refresh_interval,
+            refresh_interval,
             threads: u32::from_str(matches.value_of("threads").unwrap_or("16")).unwrap_or(16),
             log_level_filter,
         }
@@ -255,7 +255,7 @@ fn server(config: &Config, stats: SyncSender<CargoRequest>) {
         },
         download: get "api/v1/crates/:crate_name/:crate_version/download" => {
             let config = config.clone();
-            let stats = Mutex::new(stats.clone());
+            let stats = Mutex::new(stats);
             move |request: &mut Request|
                 fetch_download(request, &config, &stats)
         },
@@ -359,8 +359,6 @@ fn fetch_download(
             }
         }
     }
-
-    // Ok(Response::with((status::Ok, "Ok")))
 }
 
 fn stats_view() -> IronResult<Response> {
