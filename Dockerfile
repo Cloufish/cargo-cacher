@@ -1,45 +1,43 @@
+ARG BINARY_NAME_DEFAULT=cargo-cacher
+ARG MY_GREAT_CONFIG_DEFAULT="someconfig-default-value"
 
-FROM ghcr.io/linuxserver/baseimage-ubuntu:jammy
+FROM clux/muslrust:stable as builder
+RUN groupadd -g 10001 -r dockergrp && useradd -r -g dockergrp -u 10001 dockeruser
+ARG BINARY_NAME_DEFAULT
+ENV BINARY_NAME=$BINARY_NAME_DEFAULT
+# Build the project with target x86_64-unknown-linux-musl
 
-# set version label
-ARG BUILD_DATE
-ARG VERSION
-ARG CODE_RELEASE
-LABEL build_version="Linuxserver.io version:- ${VERSION} Build-date:- ${BUILD_DATE}"
-LABEL maintainer="aptalca"
+# Build dummy main with the project's Cargo lock and toml
+# This is a docker trick in order to avoid downloading and building 
+# dependencies when lock and toml not is modified.
+COPY Cargo.lock .
+COPY Cargo.toml .
+RUN mkdir src \
+    && echo "fn main() {print!(\"Dummy main\");} // dummy file" > src/main.rs
+RUN set -x && cargo build --target x86_64-unknown-linux-musl --release
+RUN ["/bin/bash", "-c", "set -x && rm target/x86_64-unknown-linux-musl/release/deps/${BINARY_NAME//-/_}*"]
 
-SHELL ["/bin/bash", "-c"]
+# Now add the rest of the project and build the real main
+COPY src ./src
+RUN set -x && cargo build --target x86_64-unknown-linux-musl --release
+RUN mkdir -p /build-out
+RUN set -x && cp target/x86_64-unknown-linux-musl/release/$BINARY_NAME /build-out/
 
-# environment settings
-ARG DEBIAN_FRONTEND="noninteractive"
-ENV HOME="/config"
+# Create a minimal docker image 
+FROM scratch
 
-RUN \
-  echo "**** install runtime dependencies ****" && \
-  apt-get -qq update && \
-  apt-get install -qq -y \
-    git \
-    jq \
-    libatomic1 \
-    nano \
-    net-tools \
-    netcat \
-    sudo \
-    curl \
-    build-essential \
-    gcc
+COPY --from=0 /etc/passwd /etc/passwd
+USER dockeruser
 
- 
-RUN mkdir -m777 /opt/rust /opt/cargo
-ENV RUSTUP_HOME=/opt/rust CARGO_HOME=/opt/cargo PATH=/opt/cargo/bin:$PATH
+ARG BINARY_NAME_DEFAULT
+ENV BINARY_NAME=$BINARY_NAME_DEFAULT
+ARG MY_GREAT_CONFIG_DEFAULT
+ENV MY_GREAT_CONFIG=$MY_GREAT_CONFIG_DEFAULT
 
-RUN bash -c "curl https://sh.rustup.rs -sSf | sh -s -- -y" 
+ENV RUST_LOG="error,$BINARY_NAME=info"
+COPY --from=builder /build-out/$BINARY_NAME /
 
-# RUN bash -c 'source "$HOME/.cargo/env"'
-
-RUN bash -c "cargo install cargo-cacher"
-#RUN bash -c "cargo install --git https://github.com/Cloufish/cargo-cacher"
-
-#ENTRYPOINT ["/bin/bash ./target/release/cargo-cacher"]
-#CMD [ "-p", "8555", "-a" ]
-ENTRYPOINT [ "/bin/bash" ]
+# Start with an execution list (there is no sh in a scratch image)
+# No shell => no variable expansion, |, <, >, etc 
+# Hard coded start command
+CMD ["/cargo-cacher", "-p", "8555"]
