@@ -1,3 +1,6 @@
+# Most credit for this Dockerfile needs to go to this repo -> https://github.com/bjornmolin/rust-minimal-docker
+# They've assembled base image that just works and that uses musl instead of libc (which in my attempt caused many errors)
+
 ARG BINARY_NAME_DEFAULT=cargo-cacher
 ARG MY_GREAT_CONFIG_DEFAULT="someconfig-default-value"
 
