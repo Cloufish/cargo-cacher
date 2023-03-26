@@ -40,4 +40,5 @@ COPY --from=builder /build-out/$BINARY_NAME /
 # Start with an execution list (there is no sh in a scratch image)
 # No shell => no variable expansion, |, <, >, etc 
 # Hard coded start command
+EXPOSE 8555
 CMD ["/cargo-cacher", "-p", "8555"]

@@ -1,8 +1,8 @@
 version: '3'
 services:
   cargo-cacher:
-    image: cargo-cacher:latest
+    image: cloufish/cargo-cacher:latest
     ports:
       - "80:8555"
     volumes:
-      - .:/usr/src/cargo-cacher
+      - cargo-cache-volume:$HOME/.crates
