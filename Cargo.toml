@@ -19,7 +19,7 @@ rusqlite = "0.25.0"
 scoped_threadpool = "0.1.9"
 serde = {version="1.0.125", features=["derive"]}
 serde_json = "1.0.64"
-simple_logger = "1.11.0"
+simple_logger = "2.3.0"
 walkdir = "2.3.2"
 dirs = "3.0.1"
 humantime = "2.1.0"
